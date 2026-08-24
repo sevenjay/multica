@@ -3,7 +3,7 @@
 -- Relationship cleanup is owned by the application; this table intentionally
 -- has no foreign key.
 -- IF NOT EXISTS lets databases that ran the feature branch's original 285
--- migration adopt the fork-reserved 900 migration without losing identity rows.
+-- migration adopt the fork-reserved 9900 migration without losing identity rows.
 CREATE TABLE IF NOT EXISTS user_oidc_identity (
     issuer TEXT NOT NULL,
     subject TEXT NOT NULL,
