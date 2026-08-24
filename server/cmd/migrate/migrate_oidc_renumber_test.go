@@ -54,9 +54,9 @@ func TestOIDCRenumberedMigrationsAdoptExistingFeatureTable(t *testing.T) {
 	}
 
 	versions := []string{
-		"404_user_oidc_identity",
-		"405_user_oidc_identity_subject_index",
-		"406_user_oidc_identity_user_index",
+		"900_user_oidc_identity",
+		"901_user_oidc_identity_subject_index",
+		"902_user_oidc_identity_user_index",
 	}
 	if err := runMigrations(ctx, pool, runOptions{
 		Direction:             "up",
