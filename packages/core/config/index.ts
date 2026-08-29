@@ -11,6 +11,7 @@ interface ConfigState {
   cdnSigned: boolean;
   allowSignup: boolean;
   googleClientId: string;
+  oidcProviderName: string;
   daemonServerUrl: string;
   daemonAppUrl: string;
   daemonConfigStatus: DaemonConfigStatus;
@@ -57,6 +58,7 @@ interface ConfigState {
   setAuthConfig: (config: {
     allowSignup: boolean;
     googleClientId?: string;
+    oidcProviderName?: string;
     workspaceCreationDisabled?: boolean;
     vcsIntegrationAvailable?: boolean;
   }) => void;
@@ -82,6 +84,7 @@ export const configStore = createStore<ConfigState>((set) => ({
   cdnSigned: false,
   allowSignup: true,
   googleClientId: "",
+  oidcProviderName: "",
   daemonServerUrl: "",
   daemonAppUrl: "",
   daemonConfigStatus: "loading",
@@ -101,9 +104,17 @@ export const configStore = createStore<ConfigState>((set) => ({
   setAuthConfig: ({
     allowSignup,
     googleClientId = "",
+    oidcProviderName = "",
     workspaceCreationDisabled = false,
     vcsIntegrationAvailable = false,
-  }) => set({ allowSignup, googleClientId, workspaceCreationDisabled, vcsIntegrationAvailable }),
+  }) =>
+    set({
+      allowSignup,
+      googleClientId,
+      oidcProviderName,
+      workspaceCreationDisabled,
+      vcsIntegrationAvailable,
+    }),
   setDaemonConfig: ({
     daemonServerUrl = "",
     daemonAppUrl = "",

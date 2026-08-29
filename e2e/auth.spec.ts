@@ -2,11 +2,13 @@ import { test, expect } from "@playwright/test";
 import { createTestApi, loginAsDefault, openAccountMenu, waitForPageText } from "./helpers";
 
 test.describe("Authentication", () => {
-  test("login page renders correctly", async ({ page }) => {
-    await page.goto("/login", { waitUntil: "domcontentloaded" });
+  test("login page reveals the form when email sign-in is selected", async ({ page }) => {
+    await page.goto("/login", { waitUntil: "load" });
     await waitForPageText(page, "Sign in to Multica");
 
     await expect(page.getByText("Sign in to Multica")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeHidden();
+    await page.getByRole("button", { name: "Continue with email" }).click();
     await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
     await expect(page.getByPlaceholder("you@example.com")).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();

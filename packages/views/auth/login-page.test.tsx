@@ -34,6 +34,7 @@ const mockApiVerifyCode = vi.hoisted(() => vi.fn());
 const mockApiSetToken = vi.hoisted(() => vi.fn());
 const mockApiGetMe = vi.hoisted(() => vi.fn());
 const mockApiIssueCliToken = vi.hoisted(() => vi.fn());
+const mockApiStartOIDCLogin = vi.hoisted(() => vi.fn());
 const mockSetQueryData = vi.hoisted(() => vi.fn());
 // Mutable slice of auth state the component subscribes to.
 const mockAuthState = vi.hoisted(() => ({ expired: false }));
@@ -72,6 +73,7 @@ vi.mock("@multica/core/api", () => ({
     setToken: mockApiSetToken,
     getMe: mockApiGetMe,
     issueCliToken: mockApiIssueCliToken,
+    startOIDCLogin: mockApiStartOIDCLogin,
   },
 }));
 
@@ -86,6 +88,10 @@ import { LoginPage, validateCliCallback } from "./login-page";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+async function openEmailForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Continue with email" }));
+}
 
 function getOTPInput() {
   // input-otp renders a single hidden <input> that holds the OTP value
@@ -134,18 +140,17 @@ describe("LoginPage", () => {
     expect(screen.queryByText(/your session expired/i)).not.toBeInTheDocument();
   });
 
-  it("renders email form with 'Sign in to Multica' title", () => {
+  it("opens and focuses the email form only when email sign-in is selected", async () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
-    expect(
-      screen.getByText(/sign in to multica/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/enter your email to get a login code/i),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /continue/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Sign in to Multica")).toBeInTheDocument();
+    expect(screen.queryByText("Enter your email to get a login code")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+
+    await openEmailForm(userEvent.setup());
+
+    expect(screen.getByText("Enter your email to get a login code")).toBeVisible();
+    expect(screen.getByLabelText("Email")).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   });
 
   // -------------------------------------------------------------------------
@@ -159,6 +164,8 @@ describe("LoginPage", () => {
     // form programmatically the same way the component does — via form submit.
     // Since the button is disabled, we directly call handleSendCode's logic
     // by removing the required attr and submitting.
+    const user = userEvent.setup();
+    await openEmailForm(user);
     const emailInput = screen.getByLabelText(/email/i);
     // The input has required + the button is disabled, so we need to type
     // a space then clear to trigger the empty-email error path.
@@ -168,7 +175,6 @@ describe("LoginPage", () => {
     expect(button).toBeDisabled();
 
     // Type an email to enable button, then clear it — button becomes disabled again
-    const user = userEvent.setup();
     await user.type(emailInput, "a");
     expect(button).not.toBeDisabled();
     await user.clear(emailInput);
@@ -184,6 +190,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -196,6 +203,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -207,6 +215,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -223,6 +232,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -240,6 +250,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -253,6 +264,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -276,6 +288,7 @@ describe("LoginPage", () => {
 
     const user = userEvent.setup();
     // Step 1: email
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -312,6 +325,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -339,6 +353,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -358,6 +373,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -408,6 +424,18 @@ describe("LoginPage", () => {
     expect(
       screen.queryByRole("button", { name: /continue with google/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the configured generic OIDC provider", () => {
+    renderWithI18n(
+      <LoginPage
+        onSuccess={onSuccess}
+        oidc={{ providerName: "Company SSO" }}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /continue with company sso/i }),
+    ).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -623,6 +651,7 @@ describe("LoginPage", () => {
     );
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "cli@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -684,6 +713,7 @@ describe("LoginPage", () => {
     );
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -711,6 +741,7 @@ describe("LoginPage", () => {
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
+    await openEmailForm(user);
     await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 

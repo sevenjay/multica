@@ -201,11 +201,15 @@ func (h *Handler) issueJWT(user db.User) (string, error) {
 // event fires on that edge, covering both the verification-code and Google
 // OAuth entry points.
 func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.User, isNew bool, err error) {
+	return h.findOrCreateUserWithQueries(ctx, h.Queries, email)
+}
+
+func (h *Handler) findOrCreateUserWithQueries(ctx context.Context, queries *db.Queries, email string) (user db.User, isNew bool, err error) {
 	if auth.IsTemporarilyDisabledUserEmail(email) {
 		return db.User{}, false, auth.ErrTemporarilyDisabledUser
 	}
 
-	user, err = h.Queries.GetUserByEmail(ctx, email)
+	user, err = queries.GetUserByEmail(ctx, email)
 	isNew = isNotFound(err)
 	if err != nil && !isNew {
 		return db.User{}, false, err
@@ -226,7 +230,7 @@ func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.U
 	if at := strings.Index(email, "@"); at > 0 {
 		name = email[:at]
 	}
-	created, err := h.Queries.CreateUser(ctx, db.CreateUserParams{
+	created, err := queries.CreateUser(ctx, db.CreateUserParams{
 		Name:  name,
 		Email: email,
 	})
@@ -684,11 +688,6 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if auth.IsTemporarilyDisabledUserEmail(email) {
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeAccountDisabled, auth.TemporarilyDisabledUserError)
-		return
-	}
-
 	user, isNew, err := h.findOrCreateUser(r.Context(), email)
 	if err != nil {
 		if writeGoogleLoginActionableError(w, err) {
@@ -698,24 +697,36 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create user")
 		return
 	}
+	login, ok := h.completeFederatedLoginForUser(w, r, user, isNew, gUser.Name, gUser.Picture, "google")
+	if ok {
+		writeJSON(w, http.StatusOK, login)
+	}
+}
+
+func (h *Handler) completeFederatedLoginForUser(w http.ResponseWriter, r *http.Request, user db.User, isNew bool, name, picture, method string) (LoginResponse, bool) {
+	if auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
+		writeErrorCode(w, http.StatusForbidden, googleLoginCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+		return LoginResponse{}, false
+	}
+
 	if isNew {
 		evt := analytics.Signup(uuidToString(user.ID), user.Email, signupSourceFromRequest(r))
-		evt.Properties["auth_method"] = "google"
+		evt.Properties["auth_method"] = method
 		obsmetrics.RecordEvent(h.Analytics, h.Metrics, evt)
 	}
 
-	// Update name and avatar from Google profile if the user was just created
+	// Update name and avatar from the provider profile if the user was just created
 	// (default name is email prefix) or has no avatar yet.
 	needsUpdate := false
 	newName := user.Name
 	newAvatar := user.AvatarUrl
 
-	if gUser.Name != "" && user.Name == strings.Split(email, "@")[0] {
-		newName = gUser.Name
+	if name != "" && user.Name == strings.Split(user.Email, "@")[0] {
+		newName = name
 		needsUpdate = true
 	}
-	if gUser.Picture != "" && !user.AvatarUrl.Valid {
-		newAvatar = pgtype.Text{String: gUser.Picture, Valid: true}
+	if picture != "" && !user.AvatarUrl.Valid {
+		newAvatar = pgtype.Text{String: picture, Valid: true}
 		needsUpdate = true
 	}
 
@@ -732,12 +743,13 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	tokenString, err := h.issueJWT(user)
 	if err != nil {
-		if writeGoogleLoginActionableError(w, err) {
-			return
+		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {
+			writeErrorCode(w, http.StatusForbidden, googleLoginCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+			return LoginResponse{}, false
 		}
-		slog.Warn("google login failed", append(logger.RequestAttrs(r), "error", err, "email", email)...)
+		slog.Warn(method+" login failed", append(logger.RequestAttrs(r), "error", err, "email", user.Email)...)
 		writeError(w, http.StatusInternalServerError, "failed to generate token")
-		return
+		return LoginResponse{}, false
 	}
 
 	if err := auth.SetAuthCookies(w, tokenString); err != nil {
@@ -750,11 +762,11 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	slog.Info("user logged in via google", append(logger.RequestAttrs(r), "user_id", uuidToString(user.ID), "email", user.Email)...)
-	writeJSON(w, http.StatusOK, LoginResponse{
+	slog.Info("user logged in via "+method, append(logger.RequestAttrs(r), "user_id", uuidToString(user.ID), "email", user.Email)...)
+	return LoginResponse{
 		Token: tokenString,
 		User:  h.userToResponse(user),
-	})
+	}, true
 }
 
 // IssueCliToken returns a fresh JWT for the authenticated user.

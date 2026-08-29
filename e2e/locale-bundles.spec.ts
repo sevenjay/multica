@@ -68,6 +68,7 @@ test("Russian login keeps translations out of HTML and downloads only its langua
   expect(html).not.toContain('\\"runtimes\\":');
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(page.locator('[data-slot="card-title"]')).toHaveText("Вход в Multica");
+  await page.getByRole("button", { name: "Войти по электронной почте" }).click();
   await page.locator("#login-email").fill("locale-regression@example.com");
   await expect(page.locator('button[type="submit"][form="login-form"]')).toBeEnabled();
 

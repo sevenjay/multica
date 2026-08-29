@@ -42,6 +42,7 @@ export interface AuthState {
   sendCode: (email: string) => Promise<void>;
   verifyCode: (email: string, code: string) => Promise<User>;
   loginWithGoogle: (code: string, redirectUri: string) => Promise<User>;
+  loginWithOIDC: (code: string, state: string) => Promise<{ user: User; token: string; appState: string }>;
   loginWithToken: (token: string) => Promise<User>;
   logout: () => void;
   sessionExpired: () => void;
@@ -95,6 +96,18 @@ export function createAuthStore(options: AuthStoreOptions) {
       identifyAnalytics(user.id, { email: user.email, name: user.name });
       set({ user, isLoading: false, status: "authenticated", expired: false });
       return user;
+    },
+
+    loginWithOIDC: async (code: string, state: string) => {
+      const { token, user, app_state: appState = "" } = await api.oidcLogin(code, state);
+      if (!cookieAuth) {
+        storage.setItem("multica_token", token);
+        api.setToken(token);
+      }
+      onLogin?.();
+      identifyAnalytics(user.id, { email: user.email, name: user.name });
+      set({ user, isLoading: false, status: "authenticated", expired: false });
+      return { user, token, appState };
     },
 
     loginWithToken: async (token: string) => {
